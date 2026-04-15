@@ -1,101 +1,56 @@
 """
-Setup keystore for Android signing.
+Writes signing config block to android/app/build.gradle.
+Called by CI after keystore is already decoded and verified.
 
-Strategy:
-  - If KEYSTORE_BASE64 secret is set: decode it and configure signing.
-  - If not set (no secret): generate a temporary self-signed keystore for demo builds.
-    The APK will be signed but NOT suitable for Play Store without a real keystore.
-
-Usage: python3 setup_keystore.py
+Usage:
+    python3 setup_keystore.py android/app/build.gradle
 """
 
+import sys
 import os
-import base64
-import subprocess
 import pathlib
 
-GRADLE_PATH = pathlib.Path("android/app/build.gradle")
-KEYSTORE_PATH = pathlib.Path("android/app/release.keystore")
+gradle_path = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "android/app/build.gradle")
 
-# ── Detect if real keystore is available ──────────────────────────────────────
-keystore_b64    = os.environ.get("KEYSTORE_BASE64", "").strip()
-store_pass      = os.environ.get("SIGNING_STORE_PASSWORD", "").strip()
-key_alias       = os.environ.get("SIGNING_KEY_ALIAS", "").strip()
-key_pass        = os.environ.get("SIGNING_KEY_PASSWORD", "").strip()
+store_pass = os.environ.get("SIGNING_STORE_PASSWORD", "")
+key_alias  = os.environ.get("SIGNING_KEY_ALIAS",      "")
+key_pass   = os.environ.get("SIGNING_KEY_PASSWORD",   "")
 
-has_real_keystore = bool(keystore_b64 and store_pass and key_alias and key_pass)
+if not all([store_pass, key_alias, key_pass]):
+    print("ERROR: SIGNING_STORE_PASSWORD, SIGNING_KEY_ALIAS, SIGNING_KEY_PASSWORD must all be set.")
+    sys.exit(1)
 
-if has_real_keystore:
-    # ── Use provided keystore ─────────────────────────────────────────────────
-    print("Using keystore from KEYSTORE_BASE64 secret...")
-    try:
-        keystore_bytes = base64.b64decode(keystore_b64)
-        KEYSTORE_PATH.write_bytes(keystore_bytes)
-        print(f"  Keystore written: {KEYSTORE_PATH} ({len(keystore_bytes)} bytes)")
-    except Exception as e:
-        print(f"  ERROR decoding keystore: {e}")
-        raise SystemExit(1)
+gradle_content = gradle_path.read_text()
 
-else:
-    # ── Generate a demo keystore ──────────────────────────────────────────────
-    print("No KEYSTORE_BASE64 secret found — generating demo keystore...")
-    store_pass = "android"
-    key_alias  = "androiddebugkey"
-    key_pass   = "android"
+if "signingConfigs" in gradle_content:
+    print(f"signingConfigs already present in {gradle_path} — skipping")
+    sys.exit(0)
 
-    result = subprocess.run([
-        "keytool", "-genkeypair",
-        "-keystore", str(KEYSTORE_PATH),
-        "-alias",    key_alias,
-        "-keyalg",   "RSA",
-        "-keysize",  "2048",
-        "-validity", "365",
-        "-storepass", store_pass,
-        "-keypass",   key_pass,
-        "-dname",     "CN=WebToAPK Demo, OU=Dev, O=Demo, L=City, S=State, C=US",
-        "-storetype", "JKS",
-        "-noprompt",
-    ], capture_output=True, text=True)
-
-    if result.returncode != 0:
-        print("  keytool stdout:", result.stdout)
-        print("  keytool stderr:", result.stderr)
-        raise SystemExit(1)
-
-    print(f"  Demo keystore generated: {KEYSTORE_PATH}")
-    print("  NOTE: This APK is signed with a demo key. For Play Store, add real secrets.")
-
-    # Write passwords to env file for gradle to read
-    os.environ["SIGNING_STORE_PASSWORD"] = store_pass
-    os.environ["SIGNING_KEY_ALIAS"]      = key_alias
-    os.environ["SIGNING_KEY_PASSWORD"]   = key_pass
-
-# ── Append signing config to build.gradle ────────────────────────────────────
-gradle_content = GRADLE_PATH.read_text()
-
-if "signingConfigs" not in gradle_content:
-    signing_block = f"""
+signing_block = f"""
 android {{
     signingConfigs {{
         release {{
             storeFile file("release.keystore")
-            storePassword System.getenv("SIGNING_STORE_PASSWORD") ?: "{store_pass}"
-            keyAlias      System.getenv("SIGNING_KEY_ALIAS")      ?: "{key_alias}"
-            keyPassword   System.getenv("SIGNING_KEY_PASSWORD")   ?: "{key_pass}"
+            storePassword System.getenv("SIGNING_STORE_PASSWORD")
+            keyAlias      System.getenv("SIGNING_KEY_ALIAS")
+            keyPassword   System.getenv("SIGNING_KEY_PASSWORD")
         }}
     }}
     buildTypes {{
         release {{
-            minifyEnabled false
-            shrinkResources false
+            minifyEnabled   true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             signingConfig signingConfigs.release
+        }}
+        debug {{
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+            debuggable true
         }}
     }}
 }}
 """
-    GRADLE_PATH.write_text(gradle_content + signing_block)
-    print(f"  Signing config appended to {GRADLE_PATH}")
-else:
-    print(f"  signingConfigs already present in {GRADLE_PATH}")
 
-print("Keystore setup complete.")
+gradle_path.write_text(gradle_content + signing_block)
+print(f"Signing config written to {gradle_path}")
