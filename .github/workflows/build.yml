@@ -232,33 +232,35 @@ jobs:
       - name: ⚙️ Configure signing
         run: |
           G="android/app/build.gradle"
-          grep -q "signingConfigs" "$G" || cat >> "$G" << 'EOF'
-
-          android {
-              signingConfigs {
-                  release {
-                      storeFile     file("release.keystore")
-                      storePassword System.getenv("SIGNING_STORE_PASSWORD")
-                      keyAlias      System.getenv("SIGNING_KEY_ALIAS")
-                      keyPassword   System.getenv("SIGNING_KEY_PASSWORD")
-                  }
-              }
-              buildTypes {
-                  release {
-                      minifyEnabled     true
-                      shrinkResources   true
-                      proguardFiles     getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
-                      signingConfig     signingConfigs.release
-                  }
-                  debug {
-                      applicationIdSuffix ".debug"
-                      versionNameSuffix   "-debug"
-                      debuggable          true
-                  }
-              }
-          }
-          EOF
-          echo "✅ Signing configured"
+          if grep -q "signingConfigs" "$G"; then
+            echo "ℹ️  signingConfigs already present — skipping"
+          else
+            printf '\n'                                                                            >> "$G"
+            printf 'android {\n'                                                                  >> "$G"
+            printf '    signingConfigs {\n'                                                       >> "$G"
+            printf '        release {\n'                                                          >> "$G"
+            printf '            storeFile     file("release.keystore")\n'                        >> "$G"
+            printf '            storePassword System.getenv("SIGNING_STORE_PASSWORD")\n'         >> "$G"
+            printf '            keyAlias      System.getenv("SIGNING_KEY_ALIAS")\n'              >> "$G"
+            printf '            keyPassword   System.getenv("SIGNING_KEY_PASSWORD")\n'           >> "$G"
+            printf '        }\n'                                                                  >> "$G"
+            printf '    }\n'                                                                      >> "$G"
+            printf '    buildTypes {\n'                                                           >> "$G"
+            printf '        release {\n'                                                          >> "$G"
+            printf '            minifyEnabled   true\n'                                          >> "$G"
+            printf '            shrinkResources true\n'                                          >> "$G"
+            printf '            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"\n' >> "$G"
+            printf '            signingConfig signingConfigs.release\n'                          >> "$G"
+            printf '        }\n'                                                                  >> "$G"
+            printf '        debug {\n'                                                            >> "$G"
+            printf '            applicationIdSuffix ".debug"\n'                                  >> "$G"
+            printf '            versionNameSuffix   "-debug"\n'                                  >> "$G"
+            printf '            debuggable          true\n'                                       >> "$G"
+            printf '        }\n'                                                                  >> "$G"
+            printf '    }\n'                                                                      >> "$G"
+            printf '}\n'                                                                          >> "$G"
+            echo "✅ Signing config appended to build.gradle"
+          fi
 
       - name: 🔨 Build Release APK + AAB
         env:
