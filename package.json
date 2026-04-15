@@ -1,0 +1,33 @@
+{
+  "name": "titanchart",
+  "version": "1.0.0",
+  "description": "Professional Android build pipeline using Capacitor",
+  "private": true,
+  "scripts": {
+    "build": "echo 'Replace this with your actual build command e.g. vite build or react-scripts build'",
+    "lint": "echo 'Add eslint here: eslint src/ --ext .js,.ts,.jsx,.tsx'",
+    "test": "echo 'Add your test runner here e.g. jest or vitest'",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "android",
+    "capacitor",
+    "ci-cd",
+    "github-actions",
+    "apk",
+    "aab"
+  ],
+  "author": "AKIBUZZAMAN AKIB",
+  "license": "MIT"
+}
